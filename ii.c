@@ -889,7 +889,7 @@ main(int argc, char *argv[])
 	else
 		ircfd = tcpopen(host, service, af);
 
-	if (usetls && !uds) {
+	if (usetls) {
 		if (tls_init() < 0)
 			die("%s: tls_init: %s\n", strerror(errno));
 		if ((tlscfg = tls_config_new()) == NULL)
