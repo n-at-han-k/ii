@@ -18,7 +18,8 @@ II_LDFLAGS = $(LDFLAGS)
 # remove NEED_STRLCPY from CPPFLAGS and
 # remove strlcpy.o from LIBS
 II_CPPFLAGS = $(CPPFLAGS) -DVERSION=\"$(VERSION)\" -D_DEFAULT_SOURCE -DNEED_STRLCPY
-LIBS        = strlcpy.o
+# -tls is easily provided using libretls.
+LIBS        = strlcpy.o -ltls
 
 all: ii
 

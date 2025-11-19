@@ -46,38 +46,11 @@ http://nion.modprobe.de/blog/archives/440-Using-the-ii-irc-client.html
 
 SSL/TLS support
 ---------------
+ii uses libretls for direct TLS support. Here is an example:
 
-Below is an example using OpenBSD relayd which sets up a TCP TLS relay
-connection on localhost. A similar setup can be accomplished using
-stunnel or netcat with TLS support. This also works for other programs
-that don't support TLS natively.
+	ii -s irc.libera.chat -p 6697 -t
 
-/etc/relayd.conf:
-
-	table <freenode> { irc.freenode.net }
-	table <oftc> { irc.oftc.net }
-
-	protocol "irctls" {
-		tcp { nodelay, sack }
-	}
-
-	relay "freenode" {
-		listen on 127.0.0.1 port 6668
-		protocol "irctls"
-		forward with tls to <freenode> port 6697
-	}
-
-	relay "oftc" {
-		listen on 127.0.0.1 port 6669
-		protocol "irctls"
-		forward with tls to <oftc> port 6697
-	}
-
-
-Then connect:
-
-	./irc -n nick -u name -s 127.0.0.1 -p 6668
-	./irc -n nick -u name -s 127.0.0.1 -p 6669
+You can turn off TLS certificate verification using -v.
 
 
 Configuration

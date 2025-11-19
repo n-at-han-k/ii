@@ -6,6 +6,8 @@ ii - irc it or irc improved
 .RB [ -46 ]
 .B -s
 .I host
+.RB [ -t ]
+.RB [ -v ]
 .RB [ -p
 .I port
 |
@@ -43,6 +45,12 @@ only connect to some IPv6 host
 .TP
 .BI -s " host"
 server/host to connect to, for example: irc.freenode.net
+.TP
+.BI -t
+connect using TLS
+.TP
+.BI -v
+do not verify TLS certificate
 .TP
 .BI -p " port"
 lets you override the default port (6667)
@@ -120,9 +128,6 @@ set the topic of a channel with
 Everything which is not a command will be posted into the channel or to the
 server.  So if you need /who just write /WHO as described in RFC#1459 to the
 server in FIFO.
-.SH SSL/TLS PROTOCOL SUPPORT
-For SSL/TLS protocol support you can connect to a local tunnel, for example
-with stunnel or socat.
 .SH SEE ALSO
 .BR echo (1),
 .BR tail (1)

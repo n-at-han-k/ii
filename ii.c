@@ -19,6 +19,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <tls.h>
 
 char *argv0;
 
@@ -67,7 +68,7 @@ static void      loginuser(int, const char *, const char *);
 static void      proc_channels_input(int, Channel *, char *);
 static void      proc_channels_privmsg(int, Channel *, char *);
 static void      proc_server_cmd(int, char *);
-static int       read_line(int, char *, size_t);
+static int       read_line(int, char *, size_t, int);
 static void      run(int, const char *);
 static void      setup(void);
 static void      sighandler(int);
@@ -85,6 +86,10 @@ static char     _nick[32];         /* nickname at startup */
 static char     ircpath[PATH_MAX]; /* irc dir (-i) */
 static char     msg[IRC_MSG_MAX];  /* message buf used for communication */
 
+static int	usetls = 0;
+static struct tls *tls = NULL;
+static struct tls_config *tlscfg = NULL;
+
 static void
 die(const char *fmt, ...)
 {
@@ -101,7 +106,7 @@ die(const char *fmt, ...)
 static void
 usage(void)
 {
-	die("usage: %s [-46] -s host [-p port | -u sockname] [-i ircdir]\n"
+	die("usage: %s [-46] -s host [-tv] [-p port | -u sockname] [-i ircdir]\n"
 	    "	[-n nickname] [-f fullname] [-k env_pass]\n", argv0);
 }
 
@@ -113,8 +118,13 @@ ewritestr(int fd, const char *s)
 
 	len = strlen(s);
 	for (off = 0; off < len; off += w) {
-		if ((w = write(fd, s + off, len - off)) == -1)
-			break;
+		if (usetls) {
+			if ((w = tls_write(tls, s + off, len - off)) == -1)
+				break;
+		} else {
+			if ((w = write(fd, s + off, len - off)) == -1)
+				break;
+		}
 	}
 	if (w == -1)
 		die("%s: write: %s\n", argv0, strerror(errno));
@@ -680,14 +690,29 @@ proc_server_cmd(int fd, char *buf)
 }
 
 static int
-read_line(int fd, char *buf, size_t bufsiz)
+read_line(int fd, char *buf, size_t bufsiz, int readtls)
 {
 	size_t i = 0;
 	char c = '\0';
+	ssize_t sread = 0;
 
 	do {
-		if (read(fd, &c, sizeof(char)) != sizeof(char))
-			return -1;
+		if (usetls && readtls) {
+			sread = tls_read(tls, &c, sizeof(char));
+			/*
+			 * Only try twice. If things go wrong, this is
+			 * the best heuristics to fail.
+			 */
+			if (sread == TLS_WANT_POLLIN)
+				sread = tls_read(tls, &c, sizeof(char));
+			if (sread == TLS_WANT_POLLIN)
+				sread = tls_read(tls, &c, sizeof(char));
+			if (sread != sizeof(char))
+				return -1;
+		} else {
+			if (read(fd, &c, sizeof(char)) != sizeof(char))
+				return -1;
+		}
 		buf[i++] = c;
 	} while (c != '\n' && i < bufsiz);
 	buf[i - 1] = '\0'; /* eliminates '\n' */
@@ -706,7 +731,7 @@ handle_channels_input(int ircfd, Channel *c)
 	 */
 	char buf[IRC_MSG_MAX-64];
 
-	if (read_line(c->fdin, buf, sizeof(buf)) == -1) {
+	if (read_line(c->fdin, buf, sizeof(buf), 0) == -1) {
 		if (channel_reopen(c) == -1)
 			channel_rm(c);
 		return;
@@ -719,7 +744,7 @@ handle_server_output(int ircfd)
 {
 	char buf[IRC_MSG_MAX];
 
-	if (read_line(ircfd, buf, sizeof(buf)) == -1)
+	if (read_line(ircfd, buf, sizeof(buf), 1) == -1)
 		die("%s: remote host closed connection: %s\n", argv0, strerror(errno));
 
 	fprintf(stdout, "%lu %s\n", (unsigned long)time(NULL), buf);
@@ -732,6 +757,7 @@ sighandler(int sig)
 {
 	if (sig == SIGTERM || sig == SIGINT)
 		isrunning = 0;
+	/* Ignore SIGPIPE */
 }
 
 static void
@@ -743,6 +769,7 @@ setup(void)
 	sa.sa_handler = sighandler;
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGPIPE, &sa, NULL);
 }
 
 static void
@@ -799,7 +826,7 @@ main(int argc, char *argv[])
 	const char *key = NULL, *fullname = NULL, *host = "";
 	const char *uds = NULL, *service = "6667";
 	char prefix[PATH_MAX];
-	int ircfd, r, af = AF_UNSPEC;
+	int ircfd, r, af = AF_UNSPEC, doverifytls = 1;
 
 	/* use nickname and home dir of user by default */
 	if (!(spw = getpwuid(getuid())))
@@ -833,6 +860,12 @@ main(int argc, char *argv[])
 	case 's':
 		host = EARGF(usage());
 		break;
+	case 't':
+		usetls = 1;
+		break;
+	case 'v':
+		doverifytls = 0;
+		break;
 	case 'u':
 		uds = EARGF(usage());
 		break;
@@ -848,6 +881,21 @@ main(int argc, char *argv[])
 		ircfd = udsopen(uds);
 	else
 		ircfd = tcpopen(host, service, af);
+
+	if (usetls && !uds) {
+		if (tls_init() < 0)
+			die("%s: tls_init: %s\n", strerror(errno));
+		if ((tlscfg = tls_config_new()) == NULL)
+			die("%s: tls_config_new: %s\n", strerror(errno));
+		if (!doverifytls)
+			tls_config_insecure_noverifycert(tlscfg);
+		if (!(tls = tls_client()))
+			die("%s: tls_client: %s\n", tls_error(tls));
+		if (tls_configure(tls, tlscfg))
+			die("%s: tls_configure: %s\n", tls_error(tls));
+		if (tls_connect_socket(tls, ircfd, host) < 0)
+			die("%s: tls_connect_socket: %s\n", tls_error(tls));
+	}
 
 #ifdef __OpenBSD__
 	/* OpenBSD pledge(2) support */
@@ -867,6 +915,9 @@ main(int argc, char *argv[])
 	setup();
 	run(ircfd, host);
 	cleanup();
+
+	if (tls)
+		tls_close(tls);
 
 	return 0;
 }
