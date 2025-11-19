@@ -71,7 +71,7 @@ static int       read_line(int, char *, size_t);
 static void      run(int, const char *);
 static void      setup(void);
 static void      sighandler(int);
-static int       tcpopen(const char *, const char *);
+static int       tcpopen(const char *, const char *, int);
 static size_t    tokenize(char **, size_t, char *, int);
 static int       udsopen(const char *);
 static void      usage(void);
@@ -101,7 +101,7 @@ die(const char *fmt, ...)
 static void
 usage(void)
 {
-	die("usage: %s -s host [-p port | -u sockname] [-i ircdir]\n"
+	die("usage: %s [-46] -s host [-p port | -u sockname] [-i ircdir]\n"
 	    "	[-n nickname] [-f fullname] [-k env_pass]\n", argv0);
 }
 
@@ -378,13 +378,13 @@ udsopen(const char *uds)
 }
 
 static int
-tcpopen(const char *host, const char *service)
+tcpopen(const char *host, const char *service, int af)
 {
 	struct addrinfo hints, *res = NULL, *rp;
 	int fd = -1, e;
 
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC; /* allow IPv4 or IPv6 */
+	hints.ai_family = af;
 	hints.ai_flags = AI_NUMERICSERV; /* avoid name lookup for port */
 	hints.ai_socktype = SOCK_STREAM;
 
@@ -799,7 +799,7 @@ main(int argc, char *argv[])
 	const char *key = NULL, *fullname = NULL, *host = "";
 	const char *uds = NULL, *service = "6667";
 	char prefix[PATH_MAX];
-	int ircfd, r;
+	int ircfd, r, af = AF_UNSPEC;
 
 	/* use nickname and home dir of user by default */
 	if (!(spw = getpwuid(getuid())))
@@ -809,6 +809,12 @@ main(int argc, char *argv[])
 	snprintf(prefix, sizeof(prefix), "%s/irc", spw->pw_dir);
 
 	ARGBEGIN {
+	case '4':
+		af = AF_INET;
+		break;
+	case '6':
+		af = AF_INET6;
+		break;
 	case 'f':
 		fullname = EARGF(usage());
 		break;
@@ -841,7 +847,7 @@ main(int argc, char *argv[])
 	if (uds)
 		ircfd = udsopen(uds);
 	else
-		ircfd = tcpopen(host, service);
+		ircfd = tcpopen(host, service, af);
 
 #ifdef __OpenBSD__
 	/* OpenBSD pledge(2) support */

@@ -3,6 +3,7 @@
 ii - irc it or irc improved
 .SH SYNOPSIS
 .B ii
+.RB [ -46 ]
 .B -s
 .I host
 .RB [ -p
@@ -33,6 +34,12 @@ server with basic command line tools.
 For example if you will join a channel just do echo "/j #channel" > in
 and ii creates a new channel directory with in and out file.
 .SH OPTIONS
+.TP
+.BI -4
+only connect to some IPv4 host
+.TP
+.BI -6
+only connect to some IPv6 host
 .TP
 .BI -s " host"
 server/host to connect to, for example: irc.freenode.net
