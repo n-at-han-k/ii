@@ -577,6 +577,7 @@ proc_server_cmd(int fd, char *buf)
 	char *argv[TOK_LAST], *cmd = NULL, *p = NULL;
 	unsigned int i;
 
+	channel_print(channelmaster, buf);
 	if (!buf || buf[0] == '\0')
 		return;
 
@@ -615,9 +616,13 @@ proc_server_cmd(int fd, char *buf)
 	tokenize(&argv[TOK_CMD], TOK_LAST - TOK_CMD, cmd, ' ');
 
 	if (!argv[TOK_CMD] || !strcmp("PONG", argv[TOK_CMD])) {
+		snprintf(msg, sizeof(msg), "-!- %s %s", argv[TOK_CMD], argv[TOK_TEXT]);
+		channel_print(channelmaster, msg);
 		return;
 	} else if (!strcmp("PING", argv[TOK_CMD])) {
+		channel_print(channelmaster, "-!- sending PONG to PING request");
 		snprintf(msg, sizeof(msg), "PONG %s\r\n", argv[TOK_TEXT]);
+		channel_print(channelmaster, msg);
 		ewritestr(fd, msg);
 		return;
 	} else if (!argv[TOK_NICKSRV] || !argv[TOK_USER]) {
@@ -674,6 +679,8 @@ proc_server_cmd(int fd, char *buf)
 		snprintf(msg, sizeof(msg), "<%s> %s", argv[TOK_NICKSRV],
 				argv[TOK_TEXT] ? argv[TOK_TEXT] : "");
 	} else {
+		snprintf(msg, sizeof(msg), "-!- unknown cmd %s", argv[TOK_TEXT]);
+		channel_print(channelmaster, msg);
 		return; /* can't read this message */
 	}
 	if (argv[TOK_CHAN] && !strcmp(argv[TOK_CHAN], nick))
