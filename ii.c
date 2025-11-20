@@ -907,14 +907,14 @@ main(int argc, char *argv[])
 	r = snprintf(ircpath, sizeof(ircpath), "%s/%s", prefix, host);
 	if (r < 0 || (size_t)r >= sizeof(ircpath))
 		die("%s: path to irc directory too long\n", argv0);
+	create_dirtree(ircpath);
 
 #ifdef __OpenBSD__
-	if (unveil(ircpath, "rwc") == 0)
+	if (unveil(ircpath, "rwc") == -1)
 		die("%s: unveil: %s: %s\n", argv0, ircpath, strerror(errno));
 	if (pledge("stdio rpath wpath cpath dpath", NULL) == -1)
 		die("%s: pledge: %s\n", argv0, strerror(errno));
 #endif
-	create_dirtree(ircpath);
 
 	channelmaster = channel_add(""); /* master channel */
 	if (key)
