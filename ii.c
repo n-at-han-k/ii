@@ -904,15 +904,16 @@ main(int argc, char *argv[])
 			die("%s: tls_connect_socket: %s\n", tls_error(tls));
 	}
 
-#ifdef __OpenBSD__
-	/* OpenBSD pledge(2) support */
-	if (pledge("stdio rpath wpath cpath dpath", NULL) == -1)
-		die("%s: pledge: %s\n", argv0, strerror(errno));
-#endif
-
 	r = snprintf(ircpath, sizeof(ircpath), "%s/%s", prefix, host);
 	if (r < 0 || (size_t)r >= sizeof(ircpath))
 		die("%s: path to irc directory too long\n", argv0);
+
+#ifdef __OpenBSD__
+	if (unveil(ircpath, "rwc") == 0)
+		die("%s: unveil: %s: %s\n", argv0, ircpath, strerror(errno));
+	if (pledge("stdio rpath wpath cpath dpath", NULL) == -1)
+		die("%s: pledge: %s\n", argv0, strerror(errno));
+#endif
 	create_dirtree(ircpath);
 
 	channelmaster = channel_add(""); /* master channel */
