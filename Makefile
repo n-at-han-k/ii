@@ -12,14 +12,14 @@ OBJ = $(SRC:.c=.o)
 
 # use system flags.
 II_CFLAGS = $(CFLAGS)
-II_LDFLAGS = $(LDFLAGS)
+II_LDFLAGS = $(LDFLAGS) -ltls
 
 # on systems which provide strlcpy(3),
 # remove NEED_STRLCPY from CPPFLAGS and
 # remove strlcpy.o from LIBS
 II_CPPFLAGS = $(CPPFLAGS) -DVERSION=\"$(VERSION)\" -D_DEFAULT_SOURCE -DNEED_STRLCPY
 # -tls is easily provided using libretls.
-LIBS        = strlcpy.o -ltls
+LIBS        = strlcpy.o
 
 all: ii
 
